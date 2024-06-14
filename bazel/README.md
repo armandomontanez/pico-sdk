@@ -111,6 +111,5 @@ you encounter along the way.
 
 Currently, the following features are not supported:
 
-* "None" variants of pico_double, pico_float, and pico_printf are not yet
-  supported.
 * The pioasm parser cannot be built from source via Bazel.
+* Windows MSVC wildcard build does not work when targeting host.

@@ -7,6 +7,10 @@ cc_library(
     srcs = ["flash.c"],
     hdrs = ["include/pico/flash.h"],
     includes = ["include"],
+    defines = select({
+        "//bazel/constraint:pico_freertos_unset": ["PICO_FREERTOS_LIB=0"],
+        "//conditions:default": ["PICO_FREERTOS_LIB=1"],
+    }),
     target_compatible_with = compatible_with_rp2(),
     deps = [
         "//src/common/pico_base",

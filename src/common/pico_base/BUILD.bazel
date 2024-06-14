@@ -139,16 +139,15 @@ cc_library(
 
 cc_library(
     name = "pico_base",
-    implementation_deps = select({
-        "//bazel/constraint:host": [],
-        "//conditions:default": [
-            "//src/rp2_common/pico_platform:platform_link_deps",
-        ],
-    }),
     deps = [
         # :pico_platform creates circular dependencies, so break them
         # via an intermediate.
         ":pico_platform",
         ":pico_base_interface",
-    ],
+    ] + select({
+        "//bazel/constraint:host": [],
+        "//conditions:default": [
+            "//src/rp2_common/pico_platform:platform_link_deps",
+        ],
+    }),
 )

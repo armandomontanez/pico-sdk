@@ -17,6 +17,7 @@ cc_library(
     deps = [
         "//src/common/pico_base:pico_base_interface",
         "//src/common/pico_sync",
+        "//src/rp2_common/pico_multicore",
     ],
     alwayslink = True,  # Ensures the wrapped symbols are linked in.
 )

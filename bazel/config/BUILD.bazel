@@ -74,6 +74,51 @@ bool_flag(
     build_setting_default = False,
 )
 
+# PICO_BAZEL_CONFIG: PICO_MULTICORE_ENABLED, OPTION: Enable multicore handling, type=bool, default=1, group=pico_stdlib
+bool_flag(
+    name = "PICO_MULTICORE_ENABLED",
+    build_setting_default = True,
+)
+
+# PICO_BAZEL_CONFIG: PICO_DEFAULT_DOUBLE_IMPL, The default implementation for pico_double to link. double_no_wrap includes float implementations but does not wrap standard library symbols, type=string, default=double, group=build
+string_flag(
+    name = "PICO_DEFAULT_DOUBLE_IMPL",
+    build_setting_default = "double",
+    values = [
+        "double",
+        "double_no_wrap",
+        "none",
+    ]
+)
+
+# PICO_BAZEL_CONFIG: PICO_DEFAULT_FLOAT_IMPL, The default implementation for pico_float to link. float_no_wrap includes float implementations but does not wrap standard library symbols, type=string, default=double, group=build
+string_flag(
+    name = "PICO_DEFAULT_FLOAT_IMPL",
+    build_setting_default = "float",
+    values = [
+        "float",
+        "float_no_wrap",
+        "none",
+    ]
+)
+
+# PICO_BAZEL_CONFIG: PICO_DEFAULT_PRINTF_IMPL, The default implementation for pico_printf to link. printf_no_wrap includes float implementations but does not wrap standard library symbols, type=string, default=double, group=build
+string_flag(
+    name = "PICO_DEFAULT_PRINTF_IMPL",
+    build_setting_default = "printf",
+    values = [
+        "printf",
+        "printf_no_wrap",
+        "none",
+    ]
+)
+
+# PICO_BAZEL_CONFIG: PICO_BINARY_INFO_ENABLED, Whether to include binary info in final firmware, type=bool, default=1, group=pico_stdlib
+bool_flag(
+    name = "PICO_BINARY_INFO_ENABLED",
+    build_setting_default = True,
+)
+
 # PICO_BAZEL_CONFIG: PICO_CMSIS_PATH, Label of a cc_ibrary providing CMSIS core, default="included stub CORE only impl", group=build
 label_flag(
     name = "PICO_CMSIS_PATH",

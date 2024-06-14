@@ -82,6 +82,41 @@ config_setting(
 )
 
 config_setting(
+    name = "pico_multicore_enabled",
+    flag_values = {"//bazel/config:PICO_MULTICORE_ENABLED": "True"},
+)
+
+config_setting(
+    name = "pico_float_enabled",
+    flag_values = {"//bazel/config:PICO_DEFAULT_FLOAT_IMPL": "float"},
+)
+
+config_setting(
+    name = "pico_float_enabled_no_wrap",
+    flag_values = {"//bazel/config:PICO_DEFAULT_FLOAT_IMPL": "float_no_wrap"},
+)
+
+config_setting(
+    name = "pico_double_enabled",
+    flag_values = {"//bazel/config:PICO_DEFAULT_DOUBLE_IMPL": "double"},
+)
+
+config_setting(
+    name = "pico_double_enabled_no_wrap",
+    flag_values = {"//bazel/config:PICO_DEFAULT_DOUBLE_IMPL": "double_no_wrap"},
+)
+
+config_setting(
+    name = "pico_printf_enabled",
+    flag_values = {"//bazel/config:PICO_DEFAULT_PRINTF_IMPL": "printf"},
+)
+
+config_setting(
+    name = "pico_printf_enabled_no_wrap",
+    flag_values = {"//bazel/config:PICO_DEFAULT_PRINTF_IMPL": "printf_no_wrap"},
+)
+
+config_setting(
     name = "pico_use_default_max_page_size_enabled",
     flag_values = {"//bazel/config:PICO_USE_DEFAULT_MAX_PAGE_SIZE": "True"},
 )
