@@ -18,7 +18,7 @@ typedef enum {
 #endif
 
 // Used to ensure subsequent accesses observe the new state of the maintained cache lines
-#define __post_maintenance_barrier() do {__dsb(); __isb();} while (0)
+#define __post_maintenance_barrier() do {__DSB(); __ISB();} while (0)
 
 // All functions in this file are marked non-flash, even though they themselves may be executed
 // safely from flash, because they are likely to be called during a flash programming operation

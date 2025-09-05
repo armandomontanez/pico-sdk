@@ -62,12 +62,19 @@ extern "C" {
 #endif
 #endif
 
+#if (__ARM_ACLE >= 200)
+// If the compiler offers arm_acle.h, don't try to re-define symbols from
+// the header.
+#include <arm_acle.h>
+#else
+
 /*! \brief Insert a NOP instruction in to the code path.
  *  \ingroup hardware_sync
  *
  * NOP does nothing for one cycle. On RP2350 Arm binaries this is forced to be
  * a 32-bit instruction to avoid dual-issue of NOPs.
  */
+#if !__has_builtin(__nop)
 __force_inline static void __nop(void) {
 #if !__ARM_ARCH_6M__
 #ifdef __riscv
@@ -79,6 +86,7 @@ __force_inline static void __nop(void) {
     __asm volatile ("nop");
 #endif
 }
+#endif
 
 
 /*! \brief Insert a SEV instruction in to the code path.
@@ -129,13 +137,15 @@ __force_inline static void __wfi(void) {
  * The DMB (data memory barrier) acts as a memory barrier, all memory accesses prior to this
  * instruction will be observed before any explicit access after the instruction.
  */
-__force_inline static void __dmb(void) {
+#if !__has_builtin(__dmb)
+__force_inline static void __dmb(unsigned int) {
 #ifdef __riscv
     __asm volatile ("fence rw, rw" : : : "memory");
 #else
     pico_default_asm_volatile ("dmb" : : : "memory");
 #endif
 }
+#endif
 
 /*! \brief Insert a DSB instruction in to the code path.
  *  \ingroup hardware_sync
@@ -144,13 +154,15 @@ __force_inline static void __dmb(void) {
  * memory barrier (DMB). The DSB operation completes when all explicit memory
  * accesses before this instruction complete.
  */
-__force_inline static void __dsb(void) {
+#if !__has_builtin(__dsb)
+__force_inline static void __dsb(unsigned int) {
 #ifdef __riscv
     __asm volatile ("fence rw, rw" : : : "memory");
 #else
     pico_default_asm_volatile ("dsb" : : : "memory");
 #endif
 }
+#endif
 
 /*! \brief Insert a ISB instruction in to the code path.
  *  \ingroup hardware_sync
@@ -159,13 +171,29 @@ __force_inline static void __dsb(void) {
  * so that all instructions following the ISB are fetched from cache or memory again, after
  * the ISB instruction has been completed.
  */
-__force_inline static void __isb(void) {
+#if !__has_builtin(__isb)
+__force_inline static void __isb(unsigned int) {
 #ifdef __riscv
     __asm volatile ("fence.i" : : : "memory");
 #else
     pico_default_asm_volatile("isb" ::: "memory");
 #endif
 }
+#endif
+
+#endif /* (__ARM_ACLE >= 200) */
+
+#ifndef __DMB
+#define __DMB() __dmb(0xf)
+#endif
+
+#ifndef __DSB
+#define __DSB() __dsb(0xf)
+#endif
+
+#ifndef __ISB
+#define __ISB() __isb(0xf)
+#endif
 
 /*! \brief Acquire a memory fence
  *  \ingroup hardware_sync
@@ -174,7 +202,7 @@ __force_inline static void __mem_fence_acquire(void) {
     // the original code below makes it hard for us to be included from C++ via a header
     // which itself is in an extern "C", so just use __dmb instead, which is what
     // is required on Cortex M0+
-    __dmb();
+    __DMB();
 //#ifndef __cplusplus
 //    atomic_thread_fence(memory_order_acquire);
 //#else
@@ -190,7 +218,7 @@ __force_inline static void __mem_fence_release(void) {
     // the original code below makes it hard for us to be included from C++ via a header
     // which itself is in an extern "C", so just use __dmb instead, which is what
     // is required on Cortex M0+
-    __dmb();
+    __DMB();
 //#ifndef __cplusplus
 //    atomic_thread_fence(memory_order_release);
 //#else

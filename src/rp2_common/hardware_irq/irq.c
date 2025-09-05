@@ -132,7 +132,7 @@ void irq_set_pending(uint num) {
 static void set_raw_irq_handler_and_unlock(uint num, irq_handler_t handler, uint32_t save) {
     // update vtable (vtable_handler may be same or updated depending on cases, but we do it anyway for compactness)
     get_vtable()[VTABLE_FIRST_IRQ + num] = handler;
-    __dmb();
+    __DMB();
     spin_unlock(spin_lock_instance(PICO_SPINLOCK_ID_IRQ), save);
 }
 #endif
@@ -498,7 +498,7 @@ void irq_remove_handler(uint num, irq_handler_t handler) {
             // Note that a irq handler chain is local to our own core, so we don't need to worry about the other core
             bool was_enabled = irq_is_enabled(num);
             irq_set_enabled(num, false);
-            __dmb();
+            __DMB();
 
             // It is possible we are being called while an IRQ for this chain is already in progress.
             // The issue we have here is that we must not free a slot that is currently being executed, because

@@ -35,7 +35,7 @@ static inline exception_handler_t *get_exception_table(void) {
 static void set_raw_exception_handler_and_restore_interrupts(enum exception_number num, exception_handler_t handler, uint32_t save) {
     // update vtable (vtable_handler may be same or updated depending on cases, but we do it anyway for compactness)
     get_exception_table()[num] = handler;
-    __dmb();
+    __DMB();
     restore_interrupts_from_disabled(save);
 }
 #endif
