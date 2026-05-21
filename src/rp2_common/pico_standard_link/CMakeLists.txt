@@ -30,6 +30,16 @@ if (NOT TARGET pico_standard_link)
         set_target_properties(${TARGET} PROPERTIES ${PROP} "${_LINK_DEPENDS}")
     endfunction()
 
+    
+    # pico_add_memmap_link_depends(TARGET TYPE)
+    # \brief\ Add link dependencies for the binary type to the target
+    #
+    # \param\ TYPE The binary type to use
+    function(pico_add_memmap_link_depends TARGET TYPE)
+        include(${PICO_LINKER_SCRIPT_PATH}/memmap_${TYPE}.cmake)
+        pico_add_memmap_link_depends_internal(${TARGET})
+    endfunction()
+
     # pico_check_linker_script(LDSCRIPT)
     # \brief_nodesc\ Check the linker script for compatibility
     #
@@ -84,7 +94,7 @@ if (NOT TARGET pico_standard_link)
         set_property(TARGET ${TARGET} APPEND PROPERTY PICO_TARGET_LINKER_SCRIPT_VARS "${NAME}=${VALUE}")
     endfunction()
 
-    # pico_add_linker_script_override_path(TARGET PATH)
+    # pico_add_linker_script_override_path(TARGET PATH [FILES <files...>] [GLOB_FILES])
     # \brief\ Add an override linker script path to the target
     #
     # This can be used to override default linker script files with custom versions.
@@ -97,8 +107,23 @@ if (NOT TARGET pico_standard_link)
     #
     # \param\ TARGET The target to add the linker script override path to
     # \param\ PATH The path containing the overriding linker scripts
+    # \param\ FILES The files in PATH - this is only used to calculate dependencies
+    # \param\ GLOB_FILES Instead of passing FILES, just glob for all .incl files in directory
     function(pico_add_linker_script_override_path TARGET PATH)
+        set(options GLOB_FILES)
+        set(multiValueArgs FILES)
+        cmake_parse_arguments(PARSE_ARGV 2 DEP "${options}" "${oneValueArgs}" "${multiValueArgs}")
         set_property(TARGET ${TARGET} APPEND PROPERTY PICO_TARGET_LINKER_SCRIPT_OVERRIDE_PATHS "${PATH}")
+        if (DEP_GLOB_FILES)
+            file(GLOB scripts CONFIGURE_DEPENDS "${PATH}/*.incl")
+            foreach(script ${scripts})
+                pico_add_link_depend(${TARGET} ${script})
+            endforeach()
+        else()
+            foreach(script ${DEP_FILES})
+                pico_add_link_depend(${TARGET} ${PATH}/${script})
+            endforeach()
+        endif()
     endfunction()
 
     # pico_override_flash_size(TARGET FLASH_SIZE)
@@ -109,7 +134,7 @@ if (NOT TARGET pico_standard_link)
     function(pico_override_flash_size TARGET FLASH_SIZE)
         set(PICO_FLASH_SIZE_BYTES_STRING "${FLASH_SIZE}")
         configure_file(${PICO_SDK_PATH}/src/rp2_common/pico_standard_link/pico_flash_region.template.ld ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}/pico_flash_region.ld)
-        pico_add_linker_script_override_path(${TARGET} ${CMAKE_CURRENT_BINARY_DIR}/${TARGET})
+        pico_add_linker_script_override_path(${TARGET} ${CMAKE_CURRENT_BINARY_DIR}/${TARGET} FILES pico_flash_region.ld)
         target_compile_definitions(${TARGET} PRIVATE "PICO_FLASH_SIZE_BYTES=${FLASH_SIZE}")
     endfunction()
 
@@ -121,7 +146,7 @@ if (NOT TARGET pico_standard_link)
     function(pico_override_psram_size TARGET PSRAM_SIZE)
         set(PICO_PSRAM_SIZE_BYTES_STRING "${PSRAM_SIZE}")
         configure_file(${PICO_SDK_PATH}/src/rp2_common/pico_standard_link/pico_psram_region.template.ld ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}/pico_psram_region.ld)
-        pico_add_linker_script_override_path(${TARGET} ${CMAKE_CURRENT_BINARY_DIR}/${TARGET})
+        pico_add_linker_script_override_path(${TARGET} ${CMAKE_CURRENT_BINARY_DIR}/${TARGET} FILES pico_psram_region.ld)
         target_compile_definitions(${TARGET} PRIVATE "PICO_PSRAM_SIZE_BYTES=${PSRAM_SIZE}")
     endfunction()
 
@@ -131,6 +156,7 @@ if (NOT TARGET pico_standard_link)
     # \param\ TYPE The binary type to set
     function(pico_set_binary_type TARGET TYPE)
         set_target_properties(${TARGET} PROPERTIES PICO_TARGET_BINARY_TYPE ${TYPE})
+        pico_add_memmap_link_depends(${TARGET} ${TYPE})
     endfunction()
 
     # PICO_CMAKE_CONFIG: PICO_DEFAULT_BINARY_TYPE, The default binary type to use, type=string, default=default, group=build
@@ -215,6 +241,8 @@ if (NOT TARGET pico_standard_link)
             )
     pico_add_link_depend(pico_standard_link ${_LINKER_SCRIPT_EXPRESSION})
     unset(_LINKER_SCRIPT_EXPRESSION)
+
+    pico_add_memmap_link_depends(pico_standard_link ${PICO_DEFAULT_BINARY_TYPE})
 
     # PICO_NO_FLASH will be set based on PICO_TARGET_BUILD_TYPE target property being equal to no_flash if set, otherwise to the value of the PICO_NO_FLASH cmake variable unless PICO_TARGET_TYPE is set to something else
     # PICO_BUILD_DEFINE: PICO_NO_FLASH, whether this is a 'no_flash' build, type=bool, default=0, but dependent on CMake options, group=pico_standard_link
