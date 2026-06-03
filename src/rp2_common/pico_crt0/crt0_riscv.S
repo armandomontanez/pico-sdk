@@ -35,6 +35,10 @@
 #define PICO_CRT0_DEBUG_ENTRY_RESETS_VIA_BOOTROM 1
 #endif
 
+#ifndef PICO_CRT0_NO_DATA_COPY
+#define PICO_CRT0_NO_DATA_COPY PICO_NO_FLASH
+#endif
+
 // If vectors are in RAM, we put them in the .data section, so that they are
 // preloaded by _reset_handler (assuming this is not a loaded-in-place
 // binary).
@@ -368,7 +372,7 @@ _call_xip_setup:
 
     // In a NO_FLASH binary, don't perform .data etc copy, since it's loaded
     // in-place by the SRAM load. Still need to clear .bss
-#if !PICO_NO_FLASH
+#if !PICO_CRT0_NO_DATA_COPY
     la a4, data_cpy_table
 
     // assume there is at least one entry
@@ -407,15 +411,23 @@ platform_entry: // symbol for stack traces
     ebreak
     j 1b
 
-
-#if !PICO_NO_FLASH
+#if !PICO_CRT0_NO_DATA_COPY
+#if PICO_NO_FLASH
+data_cpy:
+    // skip copies with same source and destination
+    beq a0, a1, data_cpy_done
+#else
+    // go straight into the copy
+    #define data_cpy_start data_cpy
+#endif
 data_cpy_loop:
     lw a0, (a1)
     sw a0, (a2)
     addi a1, a1, 4
     addi a2, a2, 4
-data_cpy:
+data_cpy_start:
     bltu a2, a3, data_cpy_loop
+data_cpy_done:
     ret
 #endif
 
@@ -442,6 +454,12 @@ data_cpy_table:
 .word __scratch_y_source__
 .word __scratch_y_start__
 .word __scratch_y_end__
+
+#if PICO_USE_XIP_CACHE_AS_RAM
+.word __xip_ram_source__
+.word __xip_ram_start__
+.word __xip_ram_end__
+#endif
 
 .word 0 // null terminator
 
