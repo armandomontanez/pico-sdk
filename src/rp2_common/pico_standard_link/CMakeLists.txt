@@ -208,7 +208,7 @@ if (NOT TARGET pico_standard_link)
     # \brief\ Place time-critical code for the target into <MEMORY>
     #
     # Configures the target to run functions marked __time_critical_func() from <MEMORY> rather than
-    # normal SRAM, useful if <MEMORY> has dedicated AHB ports which are otherwise unused. For example, 
+    # normal SRAM, useful if <MEMORY> has dedicated AHB ports which are otherwise unused. For example,
     # xip_ram could be used in no_flash and copy_to_ram binaries, as the XIP AHB ports are unused.
     # This sets PICO_TIME_CRITICAL_PLACEMENT=__in_<MEMORY>, and any necessary defines required to use
     # <MEMORY> (e.g. PICO_USE_XIP_CACHE_AS_RAM=1 for xip_ram).
@@ -229,7 +229,7 @@ if (NOT TARGET pico_standard_link)
     # \brief\ Place time-critical code for the target into <MEMORY>
     #
     # Configures the target to place data (and code) marked __not_in_flash() in <MEMORY> rather than
-    # normal SRAM, useful if <MEMORY> has dedicated AHB ports which are otherwise unused. For example, 
+    # normal SRAM, useful if <MEMORY> has dedicated AHB ports which are otherwise unused. For example,
     # xip_ram could be used in no_flash and copy_to_ram binaries, as the XIP AHB ports are unused.
     # This sets PICO_NOT_IN_FLASH_PLACEMENT=__in_<MEMORY>, and any necessary defines required to use
     # <MEMORY> (e.g. PICO_USE_XIP_CACHE_AS_RAM=1 for xip_ram).
@@ -363,9 +363,10 @@ if (NOT TARGET pico_standard_link)
         target_compile_definitions(pico_standard_link INTERFACE PICO_DEOPTIMIZED_DEBUG=1)
     endif()
 
-    # this (arguably wrong) code is restored for 1.5.1 as setting -nostartfiles on many C++ binaries causes link errors. see issue #1368
-    # -nostartfiles will be added if PICO_NO_FLASH would be defined to 1
-    target_link_options(pico_standard_link INTERFACE $<$<IF:$<IN_LIST:$<TARGET_PROPERTY:PICO_TARGET_BINARY_TYPE>,${NO_FLASH_BINARY_TYPES}>,1,$<AND:$<IN_LIST:${PICO_DEFAULT_BINARY_TYPE},${NO_FLASH_BINARY_TYPES}>,$<STREQUAL:,$<TARGET_PROPERTY:PICO_TARGET_BINARY_TYPE>>>>:-nostartfiles>)
+    if (PICO_C_COMPILER_IS_GNU)
+        target_link_options(pico_standard_link INTERFACE -nostartfiles)
+    endif()
+
     # boot_stage2 will be linked if PICO_NO_FLASH would be defined to 0; note if boot_stage2 headers not present, then boot_stage2 is omitted from build anyway
     if (TARGET boot_stage2_headers)
         target_link_libraries(pico_standard_link INTERFACE $<$<NOT:$<IF:$<IN_LIST:$<TARGET_PROPERTY:PICO_TARGET_BINARY_TYPE>,${NO_FLASH_BINARY_TYPES}>,1,$<AND:$<IN_LIST:${PICO_DEFAULT_BINARY_TYPE},${NO_FLASH_BINARY_TYPES}>,$<STREQUAL:,$<TARGET_PROPERTY:PICO_TARGET_BINARY_TYPE>>>>>:$<IF:$<BOOL:$<TARGET_PROPERTY:PICO_TARGET_BOOT_STAGE2>>,$<TARGET_PROPERTY:PICO_TARGET_BOOT_STAGE2>,bs2_default>_library>)
