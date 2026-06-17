@@ -413,11 +413,11 @@ bool pio_claim_free_sm_and_add_program(const pio_program_t *program, PIO *pio_ou
             int offset_or_error = pio_add_program(pio, program);
             if (offset_or_error >= 0) {
                 *pio_out = pio;
-                *sm_out = sm_or_error;
-                *offset_out = offset_or_error;
+                *sm_out = (uint)sm_or_error;
+                *offset_out = (uint)offset_or_error;
                 return true;
             }
-            pio_sm_unclaim(pio, sm_or_error);
+            pio_sm_unclaim(pio, (uint)sm_or_error);
         }
     }
     return false;
