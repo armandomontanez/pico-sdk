@@ -283,9 +283,15 @@ static_assert(DREQ_PIO2_RX0 == DREQ_PIO2_TX0 + NUM_PIO_STATE_MACHINES, "");
  *   and will return PICO_ERROR_BAD_ALIGNMENT if the configuration cannot be applied due to the above problem,
  *   or if the PIO's GPIO base (see \ref pio_set_gpio_base) does not allow access to the required pins.
  *
- *   To be clear, \ref pio_sm_set_config does not change the PIO's GPIO base for you; you must configre the PIO's
+ *   To be clear, \ref pio_sm_set_config does not change the PIO's GPIO base for you; you must configure the PIO's
  *   GPIO base before calling the method, however you can use \ref pio_claim_free_sm_and_add_program_for_gpio_range
  *   to find/configure a PIO instance suitable for a particular GPIO range.
+ *
+ * \note when `PICO_PIO_USE_GPIO_BASE == 1` \ref pio_sm_set_config ignores fields which haven't had the corresponding
+ * `sm_config_` pin function called, so that you don't have to move settings for unused pin sets into the correct
+ * pin range. Therefore, it is always a best practice to explicitly configure a pin range starting at pin zero
+ * via the corresponding sm_config_ function (e.g. `sm_config_set_out_pin_base(config, 0)`), as the default
+ * values for pin ranges from \ref pio_get_default_sm_config are now `GPIO_BASE + 0` not 0 on RP2350B.
  *
  * You can set `PARAM_ASSERTIONS_ENABLED_HARDWARE_PIO = 1` to enable parameter checking to debug pin (or other) issues with
  * hardware_pio methods.
@@ -748,17 +754,26 @@ static inline void sm_config_set_mov_status(pio_sm_config *c, enum pio_mov_statu
  * Setting | Default
  * --------|--------
  * Clock Divider | 1
- * Out Pins | 32 starting at 0
- * Set Pins | 0 starting at 0
- * In Pins | 32 starting at 0
- * Side Set Pins (base) | 0
+ * Out Pins | 32 starting at 0 (see note below)
+ * Set Pins | 0 starting at 0 (see note below)
+ * In Pins | 32 starting at 0 (see note below)
+ * Side Set Pins (base) | 0 (see note below)
  * Side Set | disabled
  * Wrap | wrap=31, wrap_to=0
  * In Shift | shift_direction=right, autopush=false, push_threshold=32
  * Out Shift | shift_direction=right, autopull=false, pull_threshold=32
- * Jmp Pin | 0
+ * Jmp Pin | 0 (see note below)
  * Out Special | sticky=false, has_enable_pin=false, enable_pin_index=0
  * Mov Status | status_sel=STATUS_TX_LESSTHAN, n=0
+ *
+ * \note on RP2350B with PICO_PIO_USE_GPIO_BASE = 1, the default Out/Set/In/Side Set pin
+ * bases are actually 0 relative to the GPIO_BASE of the PIO instance the pio_sm_config
+ * is applied to, so that any pin bases which aren't explicitly specified are not included in logic related to
+ * choosing a compatible PIO instance.
+ *
+ * Therefore, for example, if you intend to use Out pins starting at pin 0 on
+ * RP2350B, you should call `sm_config_set_out_pin_base(config, 0)`, or
+ * `sm_config_set_out_pins(config, 0, count)` explicitly.
  *
  * \return the default state machine configuration which can then be modified.
  */
@@ -831,21 +846,36 @@ static inline int pio_sm_set_config(PIO pio, uint sm, const pio_sm_config *confi
     // 0b00000 - pin is in range 0-15
     // 0b00001 - pin is in range 16-31
     // 0b00010 - pin is in range 32-47
-    uint32_t used = (~config->pinhi >> 4) & PINHI_ALL_PIN_LSBS; // checks if bit 5 of any field is 0
-    // configs that use pins 0-15
-    uint32_t gpio_under_16 = (~config->pinhi) & (~config->pinhi >> 1) & used; // checks if bits 0 and 1 of any field are both 0
-    // configs that use pins 32-47
-    uint32_t gpio_over_32 = (config->pinhi >> 1) & used; // checks if bit 1 of any field is 1
+
+    // boolean (in bit 0 of each field) 1=field_used
+    uint32_t field_used_flags = (~config->pinhi >> 4) & PINHI_ALL_PIN_LSBS;
+    // note: if the field is used and no pins are used in the range 16-47, then by convention, pins 0-15 must be used
+    // boolean (in bit 0 of each field) 1=some_used_pins_0_to_15
+    uint32_t gpio_0_15_used_flags = (~config->pinhi) & (~config->pinhi >> 1) & field_used_flags;
+    // boolean (in bit 0 of each field) 1=some_used_pins_32_to_47
+    uint32_t gpio_32_47_used_flags = (config->pinhi >> 1) & field_used_flags;
     uint gpio_base = pio_get_gpio_base(pio);
-    invalid_params_if_and_return(HARDWARE_PIO, gpio_under_16 && gpio_base, PICO_ERROR_BAD_ALIGNMENT);
-    invalid_params_if_and_return(HARDWARE_PIO, gpio_over_32 && !gpio_base, PICO_ERROR_BAD_ALIGNMENT);
-    // flip the top bit of any used (execctrl/pinctrl) values to turn:
-    // bit6(32) + 0-15  -> base(16) + 16-31
-    // bit6(0)  + 16-31 -> base(16) + 0-15
-    static_assert(PINHI_EXECCTRL_LSB == 20, ""); // we use shifts to mask off bits below
-    pio->sm[sm].execctrl = config->execctrl ^ (gpio_base ? ((used >> PINHI_EXECCTRL_LSB) << (PIO_SM0_EXECCTRL_JMP_PIN_LSB + 4)) : 0);
-    // the "12" here is a result of "sizeof(used) - PINHI_EXECCTRL_LSB" (i.e. 32 - 20) and is used to shift off the execctrl bits
-    pio->sm[sm].pinctrl = config->pinctrl ^ (gpio_base ? ((used << 12) >> 8) : 0);
+    invalid_params_if_and_return(HARDWARE_PIO, gpio_0_15_used_flags && gpio_base, PICO_ERROR_BAD_ALIGNMENT);
+    invalid_params_if_and_return(HARDWARE_PIO, gpio_32_47_used_flags && !gpio_base, PICO_ERROR_BAD_ALIGNMENT);
+    // flip bit 4 of used (execctrl/pinctrl) values if gpio_base is non-zero (i.e. 16), to turn:
+    //  pin  | pin & 32 | pin & 0x1f || base | pin_value
+    //       |          |  (stored)  ||      | (configured)
+    // 16-31 |     0    +    16-31   -> 16   + 0-15
+    // 32-47 |     32   +    0-15    -> 16   + 16-31
+    //
+    // note, that for gpio_base of zero we have:
+    //  pin  | pin & 32 | pin & 0x1f || base | pin_value
+    //       |          |  (stored)  ||      | (configured)
+    // 0-15  |     0    +    0-15    -> 0    + 0-15
+    // 16-31 |     0    +    16-31   -> 0    + 16-31
+
+    // note we already checked (above) via static_assert( (1u << PINHI_EXECCTRL_LSB) > (PINHI_ALL_PINCTRL_LSBS * 0x1f), "")
+    // that PINHI_EXECTTRL_LSB is above all the pinctrl fields...
+
+    // ... so shift pinctrl bits off the bottom, and flip EXECCTRL_JMP_PIN_MSB if used
+    pio->sm[sm].execctrl = config->execctrl ^ (gpio_base ? ((field_used_flags >> PINHI_EXECCTRL_LSB) << PIO_SM0_EXECCTRL_JMP_PIN_MSB) : 0);
+    // ... so shift execctrl bits off the top, and flip pinctrl MSBs if used
+    pio->sm[sm].pinctrl = config->pinctrl ^ (gpio_base ? ((field_used_flags << (32 - PINHI_EXECCTRL_LSB)) >> (32 - PINHI_EXECCTRL_LSB - 4)) : 0);
 #else
     pio->sm[sm].execctrl = config->execctrl;
     pio->sm[sm].pinctrl = config->pinctrl;
