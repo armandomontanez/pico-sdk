@@ -132,6 +132,32 @@ typedef enum {
 typedef void (*low_power_pstate_resume_func)(pstate_bitset_t *pstate);
 #endif
 
+/*! \brief  Set all pins to a low leakage state
+ *  \ingroup pico_low_power
+ *
+ * Disables pulls & inputs on the pads, and disables the IO output
+ * with all pins set to inputs. This results in the lowest leakage current.
+ * 
+ * Does not change the state of pins in the exclude_mask.
+ *
+ * \param exclude_mask Mask of the pins to exclude from this
+ */
+void low_power_set_pins_low_leakage_exclude_mask(uint32_t exclude_mask);
+
+/*! \brief  Set all pins to a low leakage state (64-bit mask version)
+ *  \ingroup pico_low_power
+ *
+ * \see low_power_set_pins_low_leakage_exclude_mask
+ *
+ * \param exclude_mask Mask of the pins to exclude from this
+ */
+#if NUM_BANK0_GPIOS <= 32
+static inline void low_power_set_pins_low_leakage_exclude_mask64(uint64_t exclude_mask) {
+    low_power_set_pins_low_leakage_exclude_mask((uint32_t)exclude_mask);
+}
+#else
+void low_power_set_pins_low_leakage_exclude_mask64(uint64_t exclude_mask);
+#endif
 
 /*! \brief  Sleep until an interrupt occurs
  *  \ingroup pico_low_power
