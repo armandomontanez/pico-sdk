@@ -60,13 +60,13 @@ extern "C" {
  * Mode                  | Pico (VSYS)    | Pico 2 (VSYS)   | Pico (3V3)     | Pico 2 (3V3)
  * ----------------------|----------------|-----------------|----------------|----------------
  * Sleep                 | 7.3mA (37.9mW) | 5.9mA (30.7mW)  | 8.7mA (28.5mW) | 6.9mA (22.7mW)
- * Dormant               | 0.76mA (4.0mW) | 3.3mA (17.0mW)  | 0.75mA (2.5mW) | 3.7mA (12.0mW)
+ * Dormant               | 0.95mA (5.0mW) | 3.3mA (17.0mW)  | 1.2mA (4.0mW)  | 3.7mA (12.0mW)
  * Pstate (SRAM0 On)     | N/A            | 0.25mA (1.32mW) | N/A            | 0.14mA (0.47mW)
  * Pstate (XIP SRAM On)  | N/A            | 0.22mA (1.21mW) | N/A            | 0.10mA (0.44mW)
  * Pstate (All SRAM Off) | N/A            | 0.18mA (1.10mW) | N/A            | 0.08mA (0.40mW)
  * 
  * NOTE: The RP2350 dormant values are higher than the RP2040 ones because RP2350 continues running clk_ref from the LPOSC to run the timer,
- * whereas RP2040 requires an external clock input.
+ * whereas RP2040 only runs clk_rtc from the XOSC.
  */
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_PICO_LOW_POWER, Enable/disable assertions in the pico_low_power module, type=bool, default=0, group=pico_low_power
@@ -108,14 +108,16 @@ extern "C" {
 typedef enum {
     DORMANT_CLOCK_SOURCE_XOSC,
     DORMANT_CLOCK_SOURCE_ROSC,
-#if !PICO_RP2040
+#if PICO_RP2040
+    DORMANT_CLOCK_SOURCE_RTC,
+#else
     DORMANT_CLOCK_SOURCE_LPOSC,
 #endif
     NUM_DORMANT_CLOCK_SOURCES
 } dormant_clock_source_t;
 
 #if PICO_RP2040
-#define DORMANT_CLOCK_SOURCE_DEFAULT DORMANT_CLOCK_SOURCE_XOSC
+#define DORMANT_CLOCK_SOURCE_DEFAULT DORMANT_CLOCK_SOURCE_RTC
 #else
 #define DORMANT_CLOCK_SOURCE_DEFAULT DORMANT_CLOCK_SOURCE_LPOSC
 #endif
@@ -222,13 +224,18 @@ static inline int low_power_set_external_clock_source(__unused uint src_hz, __un
  * The clocks specified in keep_enabled will be kept enabled during dormant, but XOSC and ROSC will be stopped.
  *
  * \if rp2040_specific
- * This requires an external clock source to be set using \ref low_power_set_external_clock_source before calling this function.
- * If the external clock source is not set, or it is not running, this will return PICO_ERROR_PRECONDITION_NOT_MET.
+ * If the clock source is set to DORMANT_CLOCK_SOURCE_RTC, all clocks will be switched to the ROSC while dormant so
+ * they can be stopped, except clk_rtc which will be run from the XOSC so that it continues running for the timer.
+ * In this case the XOSC will not be stopped.
+ *
+ * Otherwise, this requires an external clock source to be set using \ref low_power_set_external_clock_source before
+ * calling this function. If the external clock source is not set, or it is not running, this will return
+ * PICO_ERROR_PRECONDITION_NOT_MET.
  * \endif
  *
  * \if (!rp2040_specific || combined_docs)
- * If the clock source is set to DORMANT_CLOCK_SOURCE_LPOSC, clk_sys will be switched to the ROSC while dormant so
- * it can be stopped, while clk_ref will be run from the LPOSC so that it continues running for the timer.
+ * The clock source must be set to DORMANT_CLOCK_SOURCE_LPOSC, which means clk_sys will be switched to the ROSC while
+ * dormant so it can be stopped, while clk_ref will be run from the LPOSC so that it continues running for the timer.
  * \endif
  *
  * \param until The time to go dormant until.
@@ -243,6 +250,13 @@ int low_power_dormant_until_aon_timer(absolute_time_t until, dormant_clock_sourc
  *
  * Go dormant until the given GPIO pin changes state.
  * The clocks specified in keep_enabled will be kept enabled during dormant, but XOSC and ROSC will be stopped.
+ * 
+ * \if rp2040_specific
+ * If the clock source is set to DORMANT_CLOCK_SOURCE_RTC, all clocks will be switched to the ROSC while dormant so
+ * they can be stopped, except clk_rtc which will be run from the XOSC. In this case the XOSC will not be stopped.
+ * For the lowest power consumption, you should use DORMANT_CLOCK_SOURCE_ROSC instead, as the GPIO interrupt does
+ * not require a clock.
+ * \endif
  *
  * \if (!rp2040_specific || combined_docs)
  * If the clock source is set to DORMANT_CLOCK_SOURCE_LPOSC, clk_sys will be run from the ROSC while dormant so
